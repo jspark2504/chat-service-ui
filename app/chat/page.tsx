@@ -27,7 +27,12 @@ function ActiveChatRoom({
   roomTitle: string;
   initialMessages: ChatMessage[];
 }) {
-  const { messages, connected, socketError, sendMessage } = useChat(roomId, senderId, initialMessages);
+  const { messages, connected, socketError, sendMessage } = useChat(
+    roomId,
+    senderId,
+    initialMessages
+  );
+
   return (
     <ChatWindow
       roomTitle={roomTitle}
@@ -42,39 +47,61 @@ function ActiveChatRoom({
 
 export default function ChatPage() {
   const router = useRouter();
+
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
   const [roomsLoading, setRoomsLoading] = useState(true);
   const [roomsError, setRoomsError] = useState<string | null>(null);
+
   const [createRoomLoading, setCreateRoomLoading] = useState(false);
+
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
+
   const [senderId, setSenderId] = useState<string | null>(null);
-  const [messagesByRoom, setMessagesByRoom] = useState<Record<string, ChatMessage[]>>({});
+
+  const [messagesByRoom, setMessagesByRoom] = useState<
+    Record<string, ChatMessage[]>
+  >({});
+
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [messagesError, setMessagesError] = useState<string | null>(null);
 
   useEffect(() => {
     const token = getToken();
     const user = getUserId() ?? getUsername();
+
     if (!token || !user) {
       router.replace("/login");
       return;
     }
+
     setSenderId(user);
   }, [router]);
 
   const loadRooms = useCallback(async () => {
     if (!getToken()) return;
+
     setRoomsLoading(true);
     setRoomsError(null);
+
     try {
       const list = await fetchChatRooms();
-      setRooms(list.map((r) => ({ id: r.id, title: r.title, peerUserId: r.peerUserId, createdAt: r.createdAt })));
+
+      setRooms(
+        list.map((r) => ({
+          id: r.id,
+          title: r.title,
+          peerUserId: r.peerUserId,
+          createdAt: r.createdAt,
+        }))
+      );
+
       setSelectedRoomId((prev) => prev ?? (list[0]?.id ?? null));
     } catch {
       if (!getToken()) {
         router.replace("/login");
         return;
       }
+
       setRoomsError("채팅방 목록을 불러오지 못했습니다.");
       setRooms([]);
     } finally {
@@ -84,32 +111,48 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (!getToken()) return;
+
     void loadRooms();
   }, [loadRooms]);
 
   const loadMessages = useCallback(
     async (roomId: string) => {
       if (!getToken()) return;
+
       setMessagesLoading(true);
       setMessagesError(null);
+
       try {
         const messages = await fetchRoomMessages(roomId, 50, 0);
-        setMessagesByRoom((prev) => ({ ...prev, [roomId]: messages }));
+
+        const safeMessages: ChatMessage[] = messages
+          .filter((msg): msg is NonNullable<typeof msg> => msg !== null)
+          .map((msg) => ({
+            ...msg,
+            timestamp: msg.timestamp ?? "",
+          }));
+
+        setMessagesByRoom((prev) => ({
+          ...prev,
+          [roomId]: safeMessages,
+        }));
       } catch {
         if (!getToken()) {
           router.replace("/login");
           return;
         }
+
         setMessagesError("메시지 목록을 불러오지 못했습니다.");
       } finally {
         setMessagesLoading(false);
       }
     },
-    [router],
+    [router]
   );
 
   useEffect(() => {
     if (!selectedRoomId) return;
+
     void loadMessages(selectedRoomId);
   }, [selectedRoomId, loadMessages]);
 
@@ -118,29 +161,46 @@ export default function ChatPage() {
       router.replace("/login");
       return;
     }
+
     setCreateRoomLoading(true);
     setRoomsError(null);
+
     try {
       const room = await createChatRoom({ otherUserId });
+
       setRooms((prev) => {
         const exists = prev.some((r) => r.id === room.id);
+
         if (exists) return prev;
-        return [{ id: room.id, title: room.title, peerUserId: room.peerUserId, createdAt: room.createdAt }, ...prev];
+
+        return [
+          {
+            id: room.id,
+            title: room.title,
+            peerUserId: room.peerUserId,
+            createdAt: room.createdAt,
+          },
+          ...prev,
+        ];
       });
+
       setSelectedRoomId(room.id);
+
       await loadMessages(room.id);
     } catch {
       if (!getToken()) {
         router.replace("/login");
         return;
       }
+
       setRoomsError("채팅방 생성에 실패했습니다.");
     } finally {
       setCreateRoomLoading(false);
     }
   };
 
-  const selectedTitle = rooms.find((r) => r.id === selectedRoomId)?.title ?? null;
+  const selectedTitle =
+    rooms.find((r) => r.id === selectedRoomId)?.title ?? null;
 
   const logout = () => {
     clearAuthSession();
@@ -149,14 +209,19 @@ export default function ChatPage() {
 
   if (!senderId) {
     return (
-      <div className="flex flex-1 items-center justify-center bg-[#B2C7D9] text-sm text-neutral-600">확인 중…</div>
+      <div className="flex flex-1 items-center justify-center bg-[#B2C7D9] text-sm text-neutral-600">
+        확인 중…
+      </div>
     );
   }
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-[#A8B8C8]">
       <div className="flex shrink-0 items-center justify-end gap-2 border-b border-black/10 bg-white px-3 py-2">
-        <span className="mr-auto text-xs text-neutral-500">{senderId}</span>
+        <span className="mr-auto text-xs text-neutral-500">
+          {senderId}
+        </span>
+
         <button
           type="button"
           onClick={() => void loadRooms()}
@@ -164,6 +229,7 @@ export default function ChatPage() {
         >
           새로고침
         </button>
+
         <button
           type="button"
           onClick={logout}
@@ -172,6 +238,7 @@ export default function ChatPage() {
           로그아웃
         </button>
       </div>
+
       <div className="flex min-h-0 min-w-0 flex-1">
         <ChatRoomList
           rooms={rooms}
@@ -182,13 +249,18 @@ export default function ChatPage() {
           createLoading={createRoomLoading}
           error={roomsError}
         />
+
         {selectedRoomId ? (
           <ActiveChatRoom
             key={selectedRoomId}
             roomId={selectedRoomId}
             senderId={senderId}
-            roomTitle={selectedTitle ?? `채팅방 ${selectedRoomId}`}
-            initialMessages={messagesByRoom[selectedRoomId] ?? []}
+            roomTitle={
+              selectedTitle ?? `채팅방 ${selectedRoomId}`
+            }
+            initialMessages={
+              messagesByRoom[selectedRoomId] ?? []
+            }
           />
         ) : (
           <ChatWindow
@@ -196,7 +268,12 @@ export default function ChatPage() {
             messages={[]}
             selfId={senderId}
             connected={false}
-            socketError={messagesError ?? (messagesLoading ? "메시지 불러오는 중…" : null)}
+            socketError={
+              messagesError ??
+              (messagesLoading
+                ? "메시지 불러오는 중…"
+                : null)
+            }
             onSend={() => {}}
           />
         )}
