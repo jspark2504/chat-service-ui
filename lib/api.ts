@@ -173,23 +173,48 @@ export async function fetchChatRooms(): Promise<NormalizedRoom[]> {
     .filter((r): r is NormalizedRoom => r !== null);
 }
 
-export async function fetchRoomMessages(roomId: string, limit = 50, page = 0) {
-  const { data } = await client.get<unknown>(`/api/chat/rooms/${roomId}/messages`, {
-    params: { limit, page },
-  });
-  const list = Array.isArray(data) ? data : (data as { items?: unknown; messages?: unknown }).items ?? (data as { messages?: unknown }).messages;
+export async function fetchRoomMessages(
+  roomId: string,
+  limit = 50,
+  page = 0
+) {
+  const { data } = await client.get<unknown>(
+    `/api/chat/rooms/${roomId}/messages`,
+    {
+      params: { limit, page },
+    }
+  );
+
+  const list = Array.isArray(data)
+    ? data
+    : (data as { items?: unknown; messages?: unknown }).items ??
+      (data as { messages?: unknown }).messages;
+
   if (!Array.isArray(list)) return [];
+
   return list
     .map((item) => {
       if (!item || typeof item !== "object") return null;
+
       const message = item as MessageResponse;
+
       return {
         id: message.id,
         roomId: String(message.chatRoomId),
         senderId: String(message.senderId),
         content: String(message.content ?? ""),
-        timestamp: message.timestamp,
+        timestamp: message.timestamp ?? undefined,
       };
     })
-    .filter((m): m is { id: number; roomId: string; senderId: string; content: string; timestamp?: string } => m !== null);
+    .filter(
+      (
+        m
+      ): m is {
+        id: number;
+        roomId: string;
+        senderId: string;
+        content: string;
+        timestamp: string | undefined;
+      } => m !== null
+    );
 }
